@@ -1,0 +1,7 @@
+[submodule "state"]
+	path = state
+	url = git@github.com:AndriiKatriuk/twitter-threads-state.git
+[submodule "generated"]
+	path = generated
+	url = git@github.com:AndriiKatriuk/twitter-threads.git
+	branch = generated

@@ -1,0 +1,82 @@
+name: Render
+
+on:
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+  workflow_call:
+  workflow_run:
+    workflows:
+      - Collect tweets
+    types:
+      - completed
+
+# Allow one concurrent deployment
+concurrency:
+  group: "automation"
+
+jobs:
+  render:
+    environment: default
+    permissions:
+      id-token: write
+      pages: write
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Fetch submodules
+        run: |
+          eval `ssh-agent -s`
+          ssh-add - <<< '${{ secrets.STATE_SSH_KEY }}'
+          git submodule update --remote --init --recursive
+          git submodule foreach --recursive git config --local http.https://github.com/.extraheader "$(git config --local http.https://github.com/.extraheader)"
+          cd generated && git checkout generated
+      - name: Setup Go compiler
+        uses: actions/setup-go@v3
+        with:
+          go-version: '>=1.17.0'
+      - name: Fetch missing media
+        run: |
+            go run github.com/Ukraine-DAO/twitter-threads/fetch-media --config config.yml \
+              --state state/state.json \
+              --output_dir generated
+      - name: Render
+        env:
+          TWITTER_BEARER_TOKEN: ${{ secrets.TWITTER_BEARER_TOKEN }}
+        run: |
+          find generated -name '*.md' -type f -delete
+          go run github.com/Ukraine-DAO/twitter-threads/render --config config.yml --state state/state.json --output_dir generated --mappings generated/mappings.json
+      - name: Commit updated state
+        run: |
+          cd generated
+          git config user.name automation
+          git config user.email github-actions@github.com
+          git add .
+          if ! git diff-index --quiet HEAD; then
+            git commit -m 'Update generated files'
+            git push
+          fi
+      - name: Setup Pages
+        uses: actions/configure-pages@v2
+      - name: Build with Jekyll
+        uses: actions/jekyll-build-pages@v1
+        with:
+          source: ./generated
+          destination: ./_site
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v1
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      pages: write
+    needs: render
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v1
