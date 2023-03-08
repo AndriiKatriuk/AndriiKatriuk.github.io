@@ -1,0 +1,10 @@
+title: Andrii Katriuk's twitter threads
+tagline: Andrii Katriuk's twitter threads
+description: Andrii Katriuk's twitter threads
+twitter:
+  username: AndriiKatriuk
+
+theme: jekyll-theme-midnight
+markdown: gfm
+plugins:
+  - jekyll-redirect-from
